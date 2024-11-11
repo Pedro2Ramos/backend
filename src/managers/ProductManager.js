@@ -16,12 +16,15 @@ class ProductManager {
 
   async getProductById(id) {
     const products = await this.getAllProducts();
-    return products.find((p) => p.id === id);
+    return products.find((p) => Number(p.id) === Number(id));
   }
 
   async addProduct(newProduct) {
     const products = await this.getAllProducts();
-    newProduct.id = String(products.length + 1);
+    newProduct.id =
+      products.length > 0
+        ? String(Number(products[products.length - 1].id) + 1)
+        : "1";
     products.push(newProduct);
     await fs.writeFile(productsFilePath, JSON.stringify(products, null, 2));
     return newProduct;
@@ -29,7 +32,7 @@ class ProductManager {
 
   async updateProduct(id, updatedFields) {
     const products = await this.getAllProducts();
-    const index = products.findIndex((p) => p.id === id);
+    const index = products.findIndex((p) => Number(p.id) === Number(id));
     if (index === -1) return null;
 
     products[index] = { ...products[index], ...updatedFields };
@@ -39,10 +42,10 @@ class ProductManager {
 
   async deleteProduct(id) {
     let products = await this.getAllProducts();
-    const product = products.find((p) => p.id === id);
+    const product = products.find((p) => Number(p.id) === Number(id));
     if (!product) return null;
 
-    products = products.filter((p) => p.id !== id);
+    products = products.filter((p) => Number(p.id) !== Number(id));
     await fs.writeFile(productsFilePath, JSON.stringify(products, null, 2));
     return product;
   }

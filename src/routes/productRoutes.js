@@ -61,6 +61,9 @@ router.post("/", (req, res) => {
           .status(500)
           .json({ message: "Error al guardar el producto 4" });
       }
+
+      req.app.get("io").emit("new-product", newProduct);
+
       res.status(201).json(newProduct);
     });
   });
@@ -82,6 +85,9 @@ router.put("/:pid", (req, res) => {
             .status(500)
             .json({ message: "Error al actualizar el producto" });
         }
+
+        req.app.get("io").emit("update-product", products[index]);
+
         res.json(products[index]);
       });
     } else {
@@ -103,6 +109,9 @@ router.delete("/:pid", (req, res) => {
           .status(500)
           .json({ message: "Error al eliminar el producto" });
       }
+
+      req.app.get("io").emit("delete-product", pid);
+
       res.status(204).end();
     });
   });

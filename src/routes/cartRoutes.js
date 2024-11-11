@@ -9,8 +9,11 @@ import {
 const router = express.Router();
 
 router.get("/", getCarts);
+
 router.get("/:cid", getCartById);
+
 router.post("/", createCart);
+
 router.post("/:cid/products", addProductToCart);
 
 export default router;

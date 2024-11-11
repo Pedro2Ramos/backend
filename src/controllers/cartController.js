@@ -35,10 +35,15 @@ export const createCart = async (req, res) => {
 export const addProductToCart = async (req, res) => {
   const cid = req.params.cid;
   const { productId } = req.body;
+
   try {
     const cart = await CartManager.addProductToCart(cid, productId);
-    res.status(200).json(cart);
+    if (cart) {
+      res.status(200).json(cart);
+    } else {
+      res.status(404).json({ message: "Carrito no encontrado" });
+    }
   } catch (error) {
-    res.status(404).json({ message: error.message });
+    res.status(500).json({ message: error.message });
   }
 };
