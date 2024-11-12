@@ -13,5 +13,25 @@
     "name": "Test",
     "price": "1111",
     "id": "3"
+  },
+  {
+    "name": "Cargador",
+    "price": "22222",
+    "id": "4"
+  },
+  {
+    "name": "Casa",
+    "price": "10000",
+    "id": "5"
+  },
+  {
+    "name": "Test",
+    "price": 11111,
+    "id": "6"
+  },
+  {
+    "name": "UltimoTest ",
+    "price": 20000,
+    "id": "7"
   }
 ]
