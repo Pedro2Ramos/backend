@@ -3,15 +3,15 @@ import { Server } from "socket.io";
 import productRoutes from "./routes/productRoutes.js";
 import cartRoutes from "./routes/cartRoutes.js";
 import http from "http";
-import fs from "fs";
 import { resolve } from "path";
 import { engine } from "express-handlebars";
+import connectDB from "./configuracion/db.js";
+import Product from "./models/Product.js";
+import mongoose from "mongoose";
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
-
-const productsFilePath = resolve("src", "data", "products.json");
 
 app.use(express.json());
 
@@ -24,39 +24,48 @@ app.engine(
 app.set("view engine", "handlebars");
 app.set("views", resolve("src", "views"));
 
+connectDB();
+
 io.on("connection", (socket) => {
   console.log("Un cliente se conectó");
 
-  readProductsFromFile((err, products) => {
-    if (err) {
-      console.error("Error al leer productos:", err.message);
-      return;
+  socket.on("getProducts", async () => {
+    try {
+      const products = await Product.find();
+      socket.emit("products", products);
+    } catch (err) {
+      console.error("Error al obtener productos:", err.message);
     }
-    socket.emit("products", products);
   });
 
-  socket.on("addProduct", (newProduct) => {
-    console.log("Nuevo producto recibido:", newProduct);
-
-    readProductsFromFile((err, products) => {
-      if (err) {
-        return console.error("Error al leer productos:", err.message);
-      }
-
-      newProduct.id = String(products.length + 1);
-      products.push(newProduct);
-
-      writeProductsToFile(products, (writeErr) => {
-        if (writeErr) {
-          return console.error(
-            "Error al guardar el producto:",
-            writeErr.message
-          );
-        }
-
-        io.emit("newProduct", newProduct);
+  socket.on("addProduct", async (newProduct) => {
+    try {
+      const product = new Product({
+        title: newProduct.title,
+        description: newProduct.description,
+        price: newProduct.price,
+        category: newProduct.category,
+        stock: newProduct.stock,
+        thumbnail: newProduct.thumbnail,
       });
-    });
+
+      await product.save();
+
+      const allProducts = await Product.find();
+      io.emit("products", allProducts);
+    } catch (err) {
+      console.error("Error al agregar el producto:", err.message);
+    }
+  });
+
+  socket.on("deleteProduct", async (productId) => {
+    try {
+      await Product.findByIdAndDelete(productId);
+      const allProducts = await Product.find();
+      io.emit("products", allProducts);
+    } catch (err) {
+      console.error("Error al eliminar el producto:", err.message);
+    }
   });
 
   socket.on("disconnect", () => {
@@ -68,121 +77,92 @@ app.get("/", (req, res) => {
   res.render("home", { title: "Lista de productos" });
 });
 
-app.get("/realtimeproducts", (req, res) => {
-  readProductsFromFile((err, products) => {
-    if (err) {
-      return res.status(500).json({ message: "Error al leer los productos" });
-    }
+app.get("/realtimeproducts", async (req, res) => {
+  try {
+    const products = await Product.find();
     res.render("realTimeProducts", { products });
-  });
+  } catch (err) {
+    res.status(500).json({ message: "Error al leer los productos" });
+  }
 });
 
-const readProductsFromFile = (callback) => {
-  fs.readFile(productsFilePath, "utf-8", (err, data) => {
-    if (err) {
-      console.error("Error al leer el archivo:", err.message);
-      callback(err, null);
-    } else {
-      callback(null, JSON.parse(data));
-    }
-  });
-};
-
-const writeProductsToFile = (products, callback) => {
-  fs.writeFile(productsFilePath, JSON.stringify(products, null, 2), (err) => {
-    callback(err);
-  });
-};
-
-app.get("/api/products", (req, res) => {
-  readProductsFromFile((err, products) => {
-    if (err) {
-      return res.status(500).json({ message: "Error al leer los productos" });
-    }
+app.get("/api/products", async (req, res) => {
+  try {
+    const products = await Product.find();
     res.json(products);
-  });
+  } catch (err) {
+    res.status(500).json({ message: "Error al leer los productos" });
+  }
 });
 
-app.get("/api/products/:pid", (req, res) => {
+app.get("/api/products/:pid", async (req, res) => {
   const pid = req.params.pid;
-  readProductsFromFile((err, products) => {
-    if (err) {
-      return res.status(500).json({ message: "Error al leer los productos" });
-    }
-    const product = products.find((p) => p.id === pid);
+  try {
+    const product = await Product.findById(pid);
     if (product) {
       res.json(product);
     } else {
       res.status(404).json({ message: "Producto no encontrado" });
     }
-  });
+  } catch (err) {
+    res.status(500).json({ message: "Error al leer el producto" });
+  }
 });
 
-app.post("/api/products", (req, res) => {
+app.post("/api/products", async (req, res) => {
   const newProduct = req.body;
-  readProductsFromFile((err, products) => {
-    if (err) {
-      return res.status(500).json({ message: "Error al leer los productos" });
-    }
-    newProduct.id = String(products.length + 1);
-    products.push(newProduct);
-    writeProductsToFile(products, (writeErr) => {
-      if (writeErr) {
-        return res
-          .status(500)
-          .json({ message: "Error al guardar el producto" });
-      }
-
-      io.emit("newProduct", newProduct);
-      res.status(201).json(newProduct);
+  try {
+    const product = new Product({
+      title: newProduct.title,
+      description: newProduct.description,
+      price: newProduct.price,
+      category: newProduct.category,
+      stock: newProduct.stock,
+      thumbnail: newProduct.thumbnail,
     });
-  });
+    await product.save();
+
+    const allProducts = await Product.find();
+    io.emit("products", allProducts);
+
+    res.status(201).json(product);
+  } catch (err) {
+    console.error("Error al guardar el producto:", err);
+    res.status(500).json({ message: "Error al guardar el producto", error: err.message });
+  }
 });
 
-app.put("/api/products/:pid", (req, res) => {
+app.put("/api/products/:pid", async (req, res) => {
   const pid = req.params.pid;
   const updatedProduct = req.body;
-  readProductsFromFile((err, products) => {
-    if (err) {
-      return res.status(500).json({ message: "Error al leer los productos" });
-    }
-    const index = products.findIndex((p) => p.id === pid);
-    if (index !== -1) {
-      products[index] = { ...products[index], ...updatedProduct };
-      writeProductsToFile(products, (writeErr) => {
-        if (writeErr) {
-          return res
-            .status(500)
-            .json({ message: "Error al actualizar el producto" });
-        }
-
-        io.emit("updateProduct", products[index]);
-        res.json(products[index]);
-      });
+  try {
+    const product = await Product.findByIdAndUpdate(pid, updatedProduct, { new: true });
+    if (product) {
+      const allProducts = await Product.find();
+      io.emit("products", allProducts);
+      res.json(product);
     } else {
       res.status(404).json({ message: "Producto no encontrado" });
     }
-  });
+  } catch (err) {
+    res.status(500).json({ message: "Error al actualizar el producto" });
+  }
 });
 
-app.delete("/api/products/:pid", (req, res) => {
+app.delete("/api/products/:pid", async (req, res) => {
   const pid = req.params.pid;
-  readProductsFromFile((err, products) => {
-    if (err) {
-      return res.status(500).json({ message: "Error al leer los productos" });
-    }
-    const newProducts = products.filter((p) => p.id !== pid);
-    writeProductsToFile(newProducts, (writeErr) => {
-      if (writeErr) {
-        return res
-          .status(500)
-          .json({ message: "Error al eliminar el producto" });
-      }
-
-      io.emit("deleteProduct", pid);
+  try {
+    const product = await Product.findByIdAndDelete(pid);
+    if (product) {
+      const allProducts = await Product.find();
+      io.emit("products", allProducts);
       res.status(204).end();
-    });
-  });
+    } else {
+      res.status(404).json({ message: "Producto no encontrado" });
+    }
+  } catch (err) {
+    res.status(500).json({ message: "Error al eliminar el producto" });
+  }
 });
 
 app.use("/api/carts", cartRoutes);

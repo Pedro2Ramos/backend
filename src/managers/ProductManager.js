@@ -1,53 +1,56 @@
-import fs from "fs/promises";
-import path from "path";
-
-const productsFilePath = path.resolve("src/products.json");
+import Product from '../models/Product'; 
 
 class ProductManager {
+ 
   async getAllProducts() {
     try {
-      const data = await fs.readFile(productsFilePath, "utf-8");
-      return JSON.parse(data);
+      const products = await Product.find();
+      return products;
     } catch (error) {
-      console.error("Error al leer los productos:", error);
+      console.error("Error al obtener los productos:", error);
       throw error;
     }
   }
 
   async getProductById(id) {
-    const products = await this.getAllProducts();
-    return products.find((p) => Number(p.id) === Number(id));
+    try {
+      const product = await Product.findById(id);
+      return product;
+    } catch (error) {
+      console.error("Error al obtener el producto:", error);
+      throw error;
+    }
   }
 
   async addProduct(newProduct) {
-    const products = await this.getAllProducts();
-    newProduct.id =
-      products.length > 0
-        ? String(Number(products[products.length - 1].id) + 1)
-        : "1";
-    products.push(newProduct);
-    await fs.writeFile(productsFilePath, JSON.stringify(products, null, 2));
-    return newProduct;
+    try {
+      const product = new Product(newProduct);
+      await product.save();
+      return product;
+    } catch (error) {
+      console.error("Error al añadir el producto:", error);
+      throw error;
+    }
   }
 
   async updateProduct(id, updatedFields) {
-    const products = await this.getAllProducts();
-    const index = products.findIndex((p) => Number(p.id) === Number(id));
-    if (index === -1) return null;
-
-    products[index] = { ...products[index], ...updatedFields };
-    await fs.writeFile(productsFilePath, JSON.stringify(products, null, 2));
-    return products[index];
+    try {
+      const product = await Product.findByIdAndUpdate(id, updatedFields, { new: true });
+      return product;
+    } catch (error) {
+      console.error("Error al actualizar el producto:", error);
+      throw error;
+    }
   }
 
   async deleteProduct(id) {
-    let products = await this.getAllProducts();
-    const product = products.find((p) => Number(p.id) === Number(id));
-    if (!product) return null;
-
-    products = products.filter((p) => Number(p.id) !== Number(id));
-    await fs.writeFile(productsFilePath, JSON.stringify(products, null, 2));
-    return product;
+    try {
+      const product = await Product.findByIdAndDelete(id);
+      return product;
+    } catch (error) {
+      console.error("Error al eliminar el producto:", error);
+      throw error;
+    }
   }
 }
 

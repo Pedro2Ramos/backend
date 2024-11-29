@@ -28,7 +28,7 @@ export const addProduct = async (req, res) => {
     const newProduct = await ProductManager.addProduct(req.body);
     res.status(201).json(newProduct);
   } catch (error) {
-    res.status(500).json({ message: "Error al añadir el producto" });
+    res.status(500).json({ message: "Error al añadir el producto 2" });
   }
 };
 
