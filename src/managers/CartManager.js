@@ -1,51 +1,58 @@
-import fs from "fs/promises";
-import path from "path";
-
-const cartsFilePath = path.resolve("src", "data", "carts.json");
+import Cart from "../models/Cart.js";
+import Product from "../models/Product.js";
 
 class CartManager {
   async getAllCarts() {
     try {
-      const data = await fs.readFile(cartsFilePath, "utf-8");
-      return JSON.parse(data);
+      return await Cart.find().populate("products.productId");
     } catch (error) {
-      console.error("Error al leer los carritos:", error);
+      console.error("Error al obtener los carritos:", error);
       throw error;
     }
   }
 
   async getCartById(id) {
-    const carts = await this.getAllCarts();
-    return carts.find((c) => Number(c.id) === Number(id));
+    try {
+      const cart = await Cart.findById(id).populate("products.productId");
+      return cart;
+    } catch (error) {
+      console.error("Error al obtener el carrito:", error);
+      throw error;
+    }
   }
 
   async createCart() {
-    const carts = await this.getAllCarts();
-    const newCart = {
-      id: String(Date.now()),
-      products: [],
-    };
-    carts.push(newCart);
-    await fs.writeFile(cartsFilePath, JSON.stringify(carts, null, 2));
-    return newCart;
+    try {
+      const newCart = new Cart({ products: [] });
+      await newCart.save();
+      return newCart;
+    } catch (error) {
+      console.error("Error al crear el carrito:", error);
+      throw error;
+    }
   }
 
   async addProductToCart(cartId, productId) {
-    const carts = await this.getAllCarts();
-    const cart = carts.find((c) => Number(c.id) === Number(cartId));
-    if (!cart) return null;
+    try {
+      const cart = await Cart.findById(cartId);
+      if (!cart) return null;
 
-    const existingProduct = cart.products.find(
-      (p) => Number(p.id) === Number(productId)
-    );
-    if (existingProduct) {
-      existingProduct.quantity += 1;
-    } else {
-      cart.products.push({ id: productId, quantity: 1 });
+      const existingProductIndex = cart.products.findIndex(
+        (p) => String(p.productId) === String(productId)
+      );
+
+      if (existingProductIndex !== -1) {
+        cart.products[existingProductIndex].quantity += 1;
+      } else {
+        cart.products.push({ productId, quantity: 1 });
+      }
+
+      await cart.save();
+      return cart;
+    } catch (error) {
+      console.error("Error al agregar el producto al carrito:", error);
+      throw error;
     }
-
-    await fs.writeFile(cartsFilePath, JSON.stringify(carts, null, 2));
-    return cart;
   }
 }
 

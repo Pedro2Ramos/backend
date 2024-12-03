@@ -1,12 +1,12 @@
 import express from "express";
 import { Server } from "socket.io";
-import productRoutes from "./routes/productRoutes.js";
-import cartRoutes from "./routes/cartRoutes.js";
+import productRoutes from "./src/routes/productRoutes.js";
+import cartRoutes from "./src/routes/cartRoutes.js";
 import http from "http";
 import { resolve } from "path";
 import { engine } from "express-handlebars";
-import connectDB from "./configuracion/db.js";
-import Product from "./models/Product.js";
+import connectDB from "./src/configuracion/db.js";
+import Product from "./src/models/Product.js";
 import mongoose from "mongoose";
 
 const app = express();

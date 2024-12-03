@@ -1,120 +1,99 @@
 import express from "express";
-import fs from "fs";
-import { resolve } from "path";
-
-const productsFilePath = resolve("src", "data", "products.json");
+import Product from "../models/Product.js";
 
 const router = express.Router();
 
-const readProductsFromFile = (callback) => {
-  fs.readFile(productsFilePath, "utf-8", (err, data) => {
-    if (err) {
-      console.error("Error al leer el archivo:", err.message);
-      callback(err, null);
-    } else {
-      callback(null, JSON.parse(data));
-    }
-  });
-};
-
-const writeProductsToFile = (products, callback) => {
-  fs.writeFile(productsFilePath, JSON.stringify(products, null, 2), (err) => {
-    callback(err);
-  });
-};
-
-router.get("/", (req, res) => {
-  readProductsFromFile((err, products) => {
-    if (err) {
-      return res.status(500).json({ message: "Error al leer los productos 1" });
-    }
+router.get("/", async (req, res) => {
+  try {
+    const products = await Product.find();
     res.json(products);
-  });
+  } catch (err) {
+    console.error("Error al obtener productos:", err.message);
+    res.status(500).json({ message: "Error al obtener los productos" });
+  }
 });
 
-router.get("/:pid", (req, res) => {
-  const pid = req.params.pid;
-  readProductsFromFile((err, products) => {
-    if (err) {
-      return res.status(500).json({ message: "Error al leer los productos 2" });
-    }
-    const product = products.find((p) => p.id === pid);
+router.get("/:pid", async (req, res) => {
+  const { pid } = req.params;
+  try {
+    const product = await Product.findById(pid);
     if (product) {
       res.json(product);
     } else {
       res.status(404).json({ message: "Producto no encontrado" });
     }
-  });
+  } catch (err) {
+    console.error("Error al obtener el producto:", err.message);
+    res.status(500).json({ message: "Error al obtener el producto" });
+  }
 });
 
-router.post("/", (req, res) => {
-  const newProduct = req.body;
-  readProductsFromFile((err, products) => {
-    if (err) {
-      return res.status(500).json({ message: "Error al leer los productos 3" });
-    }
-    newProduct.id = String(products.length + 1);
-    products.push(newProduct);
-    writeProductsToFile(products, (writeErr) => {
-      if (writeErr) {
-        return res
-          .status(500)
-          .json({ message: "Error al guardar el producto 4" });
-      }
+router.post("/", async (req, res) => {
+  const { name, description, price, category } = req.body;
+  
+  const { error } = validateProduct(req.body);
+  if (error) {
+    return res.status(400).json({ message: error.details[0].message });
+  }
 
-      req.app.get("io").emit("new-product", newProduct);
-
-      res.status(201).json(newProduct);
+  try {
+    const newProduct = new Product({
+      name,
+      description,
+      price,
+      category,
     });
-  });
+
+    await newProduct.save();
+
+    req.app.get("io").emit("new-product", newProduct);
+
+    res.status(201).json(newProduct);
+  } catch (err) {
+    console.error("Error al guardar el producto:", err.message);
+    res.status(500).json({ message: "Error al guardar el producto" });
+  }
 });
 
-router.put("/:pid", (req, res) => {
-  const pid = req.params.pid;
-  const updatedProduct = req.body;
-  readProductsFromFile((err, products) => {
-    if (err) {
-      return res.status(500).json({ message: "Error al leer los productos" });
-    }
-    const index = products.findIndex((p) => p.id === pid);
-    if (index !== -1) {
-      products[index] = { ...products[index], ...updatedProduct };
-      writeProductsToFile(products, (writeErr) => {
-        if (writeErr) {
-          return res
-            .status(500)
-            .json({ message: "Error al actualizar el producto" });
-        }
+router.put("/:pid", async (req, res) => {
+  const { pid } = req.params;
+  const { name, description, price, category } = req.body;
 
-        req.app.get("io").emit("update-product", products[index]);
+  try {
+    const updatedProduct = await Product.findByIdAndUpdate(
+      pid,
+      { name, description, price, category },
+      { new: true }
+    );
 
-        res.json(products[index]);
-      });
+    if (updatedProduct) {
+      req.app.get("io").emit("update-product", updatedProduct);
+      res.json(updatedProduct);
     } else {
       res.status(404).json({ message: "Producto no encontrado" });
     }
-  });
+  } catch (err) {
+    console.error("Error al actualizar el producto:", err.message);
+    res.status(500).json({ message: "Error al actualizar el producto" });
+  }
 });
 
-router.delete("/:pid", (req, res) => {
-  const pid = req.params.pid;
-  readProductsFromFile((err, products) => {
-    if (err) {
-      return res.status(500).json({ message: "Error al leer los productos" });
-    }
-    const newProducts = products.filter((p) => p.id !== pid);
-    writeProductsToFile(newProducts, (writeErr) => {
-      if (writeErr) {
-        return res
-          .status(500)
-          .json({ message: "Error al eliminar el producto" });
-      }
+router.delete("/:pid", async (req, res) => {
+  const { pid } = req.params;
 
+  try {
+    const deletedProduct = await Product.findByIdAndDelete(pid);
+
+    if (deletedProduct) {
       req.app.get("io").emit("delete-product", pid);
-
       res.status(204).end();
-    });
-  });
+    } else {
+      res.status(404).json({ message: "Producto no encontrado" });
+    }
+  } catch (err) {
+    console.error("Error al eliminar el producto:", err.message);
+    res.status(500).json({ message: "Error al eliminar el producto" });
+  }
 });
 
 export default router;
